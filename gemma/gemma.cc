@@ -32,11 +32,20 @@
 #include "gemma/weights.h"
 #include "ops/ops-inl.h"
 #include "paligemma/image.h"
+#include "util/app.h"
 #include "util/threading.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/highway.h"
 
 namespace gcpp {
+
+void InitializeGemmaLibrary() {
+    AppArgs app;
+    app.Init();
+    app.max_packages = 1;
+    NestedPools pools = CreatePools(app);
+    Allocator::Init(pools.Topology());
+}
 
 Gemma::Gemma(const Path& tokenizer_path, const Path& weights,
              const ModelInfo& info, NestedPools& pools)
