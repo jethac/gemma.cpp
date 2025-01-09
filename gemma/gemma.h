@@ -39,6 +39,11 @@
 #include "hwy/aligned_allocator.h"  // Span
 
 namespace gcpp {
+
+// Initialize global state needed by the library.
+// Must be called before creating any Gemma instances.
+void InitializeGemmaLibrary();
+
 using PromptTokens = hwy::Span<const int>;
 
 // Batches of independent queries have their own prompt, previous token,
