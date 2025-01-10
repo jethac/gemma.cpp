@@ -22,7 +22,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-FetchContent_Declare(highway GIT_REPOSITORY https://github.com/google/highway.git GIT_TAG 2b565e87d50b151660494624af532ac0b6076c79 EXCLUDE_FROM_ALL)
+# Set library type based on whether we're building a DLL
+if(BUILD_GEMMA_DLL)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+endif()
+
+FetchContent_Declare(highway GIT_REPOSITORY https://github.com/google/highway.git GIT_TAG c8c3f5eadab4a998a33fd86374a588672a3d658b EXCLUDE_FROM_ALL)
 FetchContent_MakeAvailable(highway)
 
 ## Note: absl needs to be installed by sentencepiece. This will only happen if
