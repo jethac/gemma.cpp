@@ -29,15 +29,15 @@
 #include "gemma/gemma.h"
 #include "gemma/weights.h"
 // Placeholder for internal test4, do not remove
-#include "paligemma/image.h"
-#include "util/allocator.h"
-#include "util/basics.h"
-#include "util/threading.h"
 #include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
 #include "hwy/bit_set.h"
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/timer.h"
+#include "paligemma/image.h"
+#include "util/allocator.h"
+#include "util/basics.h"
+#include "util/threading.h"
 
 // Include guard (still compiled once per target)
 #if defined(THIRD_PARTY_GEMMA_CPP_GEMMA_GEMMA_INL_H_) == \
@@ -50,10 +50,10 @@
 
 #include "hwy/highway.h"
 // After highway.h
+#include "hwy/profiler.h"  // also uses SIMD
 #include "ops/matmul-inl.h"
 #include "ops/matvec-inl.h"
 #include "ops/ops-inl.h"
-#include "hwy/profiler.h"  // also uses SIMD
 
 #ifndef GEMMA_TYPE
 #if HWY_IDE
@@ -163,7 +163,7 @@ HWY_NOINLINE void GriffinRecurrent(size_t batch_start, size_t num_tokens,
       Sigmoid(gate_x + head_offset, kHeadDim);
       Sigmoid(a + head_offset, kHeadDim);
       const auto fn_mul = [](D d, hn::Vec<D> x, hn::Vec<D> gate_x)
-                          HWY_ATTR { return hn::Mul(x, gate_x); };
+                              HWY_ATTR { return hn::Mul(x, gate_x); };
       hn::Transform1(D(), a + head_offset, kHeadDim,
                      layer_weights->griffin.a.data_scale1() + head_offset,
                      fn_mul);
@@ -792,6 +792,12 @@ HWY_NOINLINE void EmbedToken(int token, size_t batch_idx, size_t pos,
                              const ModelWeightsPtrs<T>& weights,
                              RowVectorBatch<float>& x,
                              const ImageTokens* image_tokens) {
+  // Add debug print
+  fprintf(stderr,
+          "DEBUG: EmbedToken called with token=%d, batch_idx=%zu, pos=%zu, "
+          "pos_in_prompt=%zu\n",
+          token, batch_idx, pos, pos_in_prompt);
+
   // Image tokens just need to be copied.
   if (image_tokens != nullptr && pos_in_prompt < image_tokens->BatchSize()) {
     hwy::CopyBytes(image_tokens->Batch(pos_in_prompt), x.Batch(batch_idx),
@@ -1408,7 +1414,7 @@ void GenerateBatchT(const ModelWeightsStorage& model,
                                              qbatch_size);
     QueriesPos qbatch_pos(&queries_pos[qbatch_start], qbatch_size);
     const QueriesPos qbatch_prefix_end(&queries_prefix_end[qbatch_start],
-                                             qbatch_size);
+                                       qbatch_size);
     const KVCaches qbatch_kv(&kv_caches[qbatch_start], qbatch_size);
     GenerateT<T>(model, activations, runtime_config, qbatch_prompts, qbatch_pos,
                  qbatch_prefix_end, qbatch_start, qbatch_kv, timing_info);

@@ -111,6 +111,8 @@ set(SOURCES
 # Add C API sources only when building DLL
 if(BUILD_GEMMA_DLL)
   list(APPEND SOURCES
+    gemma/context.h
+    gemma/context.cc
     gemma/c_api.h
     gemma/c_api.cc
   )
