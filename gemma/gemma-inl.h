@@ -792,11 +792,14 @@ HWY_NOINLINE void EmbedToken(int token, size_t batch_idx, size_t pos,
                              const ModelWeightsPtrs<T>& weights,
                              RowVectorBatch<float>& x,
                              const ImageTokens* image_tokens) {
-  // Add debug print
-  fprintf(stderr,
-          "DEBUG: EmbedToken called with token=%d, batch_idx=%zu, pos=%zu, "
-          "pos_in_prompt=%zu\n",
-          token, batch_idx, pos, pos_in_prompt);
+#ifdef _WIN32
+  char debug_buf[1024];
+  sprintf_s(
+      debug_buf,
+      "DEBUG: EmbedToken token=%d batch_idx=%zu pos=%zu pos_in_prompt=%zu\n",
+      token, batch_idx, pos, pos_in_prompt);
+  OutputDebugStringA(debug_buf);
+#endif
 
   // Image tokens just need to be copied.
   if (image_tokens != nullptr && pos_in_prompt < image_tokens->BatchSize()) {
@@ -1000,6 +1003,15 @@ HWY_NOINLINE void Prefill(
       for (size_t ti = 0; ti < tbatch_size; ++ti) {
         const size_t pos = queries_pos[qi] + ti;
         const size_t pos_in_prompt = tbatch_start + ti;
+
+#ifdef _WIN32
+        char debug_buf[1024];
+        sprintf_s(debug_buf,
+                  "DEBUG: Prefill qi=%zu, prompt_size=%zu, pos_in_prompt=%zu\n",
+                  qi, queries_prompt[qi].size(), pos_in_prompt);
+        OutputDebugStringA(debug_buf);
+#endif
+
         const int token = queries_prompt[qi][pos_in_prompt];
         EmbedToken(token, ti, pos, pos_in_prompt, weights, activations.x,
                    runtime_config.image_tokens);
