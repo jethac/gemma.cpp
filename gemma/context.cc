@@ -77,7 +77,8 @@ int GemmaContext::Generate(const char* prompt, char* output, int max_length) {
 #endif
 
     TimingInfo timing_info = {.verbosity = 0};
-    model->Generate(runtime_config, token_buffer, 0, 0, *kv_cache, timing_info);
+    hwy::Span<const int> testspan(token_buffer.data(), token_buffer.size());
+    model->Generate(runtime_config, testspan, 0, 0, *kv_cache, timing_info);
 
     if (result_buffer.length() >= static_cast<size_t>(max_length)) return -1;
     strcpy(output, result_buffer.c_str());
