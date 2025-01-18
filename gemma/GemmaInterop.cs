@@ -52,12 +52,20 @@ namespace GemmaCpp
         }
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr GemmaCreate(string modelPath);
+        private static extern IntPtr GemmaCreate(
+            [MarshalAs(UnmanagedType.LPStr)] string tokenizerPath,
+            [MarshalAs(UnmanagedType.LPStr)] string modelType,
+            [MarshalAs(UnmanagedType.LPStr)] string weightsPath,
+            [MarshalAs(UnmanagedType.LPStr)] string weightType);
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void GemmaDestroy(IntPtr handle);
+        private static extern void GemmaDestroy(IntPtr context);
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
-        private static extern int GemmaGenerate(IntPtr handle, string prompt, byte[] output, int maxLength);
+        private static extern int GemmaGenerate(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.LPStr)] string prompt,
+            [MarshalAs(UnmanagedType.LPStr)] StringBuilder output,
+            int maxLength);
     }
 }
