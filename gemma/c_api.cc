@@ -1,4 +1,7 @@
+#ifndef GEMMA_EXPORTS
 #define GEMMA_EXPORTS
+#endif
+
 #include "gemma/c_api.h"
 
 #include "util/app.h"
