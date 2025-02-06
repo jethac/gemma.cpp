@@ -64,18 +64,6 @@ int GemmaContext::Generate(const char* prompt, char* output, int max_length) {
     token_buffer =
         WrapAndTokenize(model->Tokenizer(), model->Info(), 0, prompt_buffer);
 
-#ifdef _WIN32
-    char debug_buf[1024];
-    sprintf_s(debug_buf,
-              "DEBUG: Tokenized prompt to %zu tokens: ", token_buffer.size());
-    OutputDebugStringA(debug_buf);
-    for (size_t i = 0; i < token_buffer.size() && i < 10; ++i) {
-      sprintf_s(debug_buf, "%d ", token_buffer[i]);
-      OutputDebugStringA(debug_buf);
-    }
-    OutputDebugStringA("\n");
-#endif
-
     TimingInfo timing_info = {.verbosity = 0};
     hwy::Span<const int> testspan(token_buffer.data(), token_buffer.size());
     model->Generate(runtime_config, testspan, 0, 0, *kv_cache, timing_info);
