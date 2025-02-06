@@ -88,4 +88,16 @@ int GemmaContext::Generate(const char* prompt, char* output, int max_length) {
   }
 }
 
+int GemmaContext::CountTokens(const char* text) {
+  if (!model || !text) return -1;
+  try {
+    std::string text_str(text);
+    std::vector<int> tokens =
+        WrapAndTokenize(model->Tokenizer(), model->Info(), 0, text_str);
+    return static_cast<int>(tokens.size());
+  } catch (...) {
+    return -1;
+  }
+}
+
 }  // namespace gcpp

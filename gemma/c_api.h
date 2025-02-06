@@ -46,6 +46,8 @@ GEMMA_API void GemmaDestroy(GemmaContext* ctx);
 GEMMA_API int GemmaGenerate(GemmaContext* ctx, const char* prompt, char* output,
                             int max_length);
 
+GEMMA_API int GemmaCountTokens(GemmaContext* ctx, const char* text);
+
 #ifdef __cplusplus
 }
 #endif

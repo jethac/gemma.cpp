@@ -36,6 +36,9 @@ class GemmaContext {
   // Returns length of generated text, or -1 on error
   int Generate(const char* prompt, char* output, int max_length);
 
+  // Returns number of tokens in text, or -1 on error
+  int CountTokens(const char* text);
+
  private:
   NestedPools pools;
   std::unique_ptr<Gemma> model;

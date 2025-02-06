@@ -1,54 +1,32 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace GemmaCpp
 {
+    public class GemmaException : Exception
+    {
+        public GemmaException(string message) : base(message) { }
+    }
+
     public class Gemma : IDisposable
     {
-        private IntPtr _handle;
+        private IntPtr _context;
         private bool _disposed;
 
-        public Gemma(string modelPath)
+        // Optional: Allow setting DLL path
+        public static string DllPath { get; set; } = "gemma.dll";
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr LoadLibrary(string lpFileName);
+
+        static Gemma()
         {
-            _handle = GemmaCreate(modelPath);
-            if (_handle == IntPtr.Zero)
-                throw new InvalidOperationException("Failed to create Gemma instance");
-        }
-
-        public string Generate(string prompt)
-        {
-            const int MaxLength = 8192;
-            var buffer = new byte[MaxLength];
-
-            int length = GemmaGenerate(_handle, prompt, buffer, MaxLength);
-            if (length < 0)
-                throw new InvalidOperationException("Generation failed");
-
-            return System.Text.Encoding.UTF8.GetString(buffer, 0, length);
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
+            // Load DLL from specified path
+            if (LoadLibrary(DllPath) == IntPtr.Zero)
             {
-                if (_handle != IntPtr.Zero)
-                {
-                    GemmaDestroy(_handle);
-                    _handle = IntPtr.Zero;
-                }
-                _disposed = true;
+                throw new DllNotFoundException($"Failed to load {DllPath}. Error: {Marshal.GetLastWin32Error()}");
             }
-        }
-
-        ~Gemma()
-        {
-            Dispose(false);
         }
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
@@ -67,5 +45,65 @@ namespace GemmaCpp
             [MarshalAs(UnmanagedType.LPStr)] string prompt,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder output,
             int maxLength);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int GemmaCountTokens(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.LPStr)] string text);
+
+        public Gemma(string tokenizerPath, string modelType, string weightsPath, string weightType)
+        {
+            _context = GemmaCreate(tokenizerPath, modelType, weightsPath, weightType);
+            if (_context == IntPtr.Zero)
+            {
+                throw new GemmaException("Failed to create Gemma context");
+            }
+        }
+
+        public int CountTokens(string prompt)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+            int count = GemmaCountTokens(_context, prompt);
+            return count;
+        }
+
+        public string Generate(string prompt, int maxLength = 4096)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            var output = new StringBuilder(maxLength);
+            int length = GemmaGenerate(_context, prompt, output, maxLength);
+
+            if (length < 0)
+                throw new GemmaException("Generation failed");
+
+            return output.ToString();
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                if (_context != IntPtr.Zero)
+                {
+                    GemmaDestroy(_context);
+                    _context = IntPtr.Zero;
+                }
+                _disposed = true;
+            }
+        }
+
+        ~Gemma()
+        {
+            Dispose();
+        }
     }
 }

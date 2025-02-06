@@ -37,4 +37,9 @@ GEMMA_API int GemmaGenerate(GemmaContext* ctx, const char* prompt, char* output,
   return static_cast<gcpp::GemmaContext*>(ctx)->Generate(prompt, output,
                                                          max_length);
 }
+
+GEMMA_API int GemmaCountTokens(GemmaContext* ctx, const char* text) {
+  if (!ctx || !text) return -1;
+  return static_cast<gcpp::GemmaContext*>(ctx)->CountTokens(text);
+}
 }
