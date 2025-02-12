@@ -34,26 +34,41 @@ namespace GemmaCpp
             [MarshalAs(UnmanagedType.LPStr)] string tokenizerPath,
             [MarshalAs(UnmanagedType.LPStr)] string modelType,
             [MarshalAs(UnmanagedType.LPStr)] string weightsPath,
-            [MarshalAs(UnmanagedType.LPStr)] string weightType);
+            [MarshalAs(UnmanagedType.LPStr)] string weightType,
+            int maxLength);
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GemmaDestroy(IntPtr context);
+
+        // Delegate type for token callbacks
+        public delegate bool TokenCallback(string token);
+
+        // Keep delegate alive for duration of calls
+        private GCHandle _callbackHandle;
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern int GemmaGenerate(
             IntPtr context,
             [MarshalAs(UnmanagedType.LPStr)] string prompt,
             [MarshalAs(UnmanagedType.LPStr)] StringBuilder output,
-            int maxLength);
+            int maxLength,
+            GemmaTokenCallback callback,
+            IntPtr userData);
+
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern int GemmaCountTokens(
             IntPtr context,
             [MarshalAs(UnmanagedType.LPStr)] string text);
 
-        public Gemma(string tokenizerPath, string modelType, string weightsPath, string weightType)
+        // Native callback delegate type
+        private delegate bool GemmaTokenCallback(
+            [MarshalAs(UnmanagedType.LPStr)] string text,
+            IntPtr userData);
+
+        public Gemma(string tokenizerPath, string modelType, string weightsPath, string weightType, int maxLength = 8192)
         {
-            _context = GemmaCreate(tokenizerPath, modelType, weightsPath, weightType);
+            _context = GemmaCreate(tokenizerPath, modelType, weightsPath, weightType, maxLength);
             if (_context == IntPtr.Zero)
             {
                 throw new GemmaException("Failed to create Gemma context");
@@ -73,6 +88,11 @@ namespace GemmaCpp
 
         public string Generate(string prompt, int maxLength = 4096)
         {
+            return Generate(prompt, null, maxLength);
+        }
+
+        public string Generate(string prompt, TokenCallback callback, int maxLength = 4096)
+        {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(Gemma));
 
@@ -80,12 +100,29 @@ namespace GemmaCpp
                 throw new GemmaException("Gemma context is invalid");
 
             var output = new StringBuilder(maxLength);
-            int length = GemmaGenerate(_context, prompt, output, maxLength);
+            GemmaTokenCallback nativeCallback = null;
 
-            if (length < 0)
-                throw new GemmaException("Generation failed");
+            if (callback != null)
+            {
+                nativeCallback = (text, _) => callback(text);
+                _callbackHandle = GCHandle.Alloc(nativeCallback);
+            }
 
-            return output.ToString();
+            try
+            {
+                int length = GemmaGenerate(_context, prompt, output, maxLength,
+                    nativeCallback, IntPtr.Zero);
+
+                if (length < 0)
+                    throw new GemmaException("Generation failed");
+
+                return output.ToString();
+            }
+            finally
+            {
+                if (_callbackHandle.IsAllocated)
+                    _callbackHandle.Free();
+            }
         }
 
         public void Dispose()

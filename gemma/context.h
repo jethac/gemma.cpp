@@ -27,6 +27,8 @@
 
 namespace gcpp {
 
+typedef bool (*GemmaTokenCallback)(const char* text, void* user_data);
+
 class GemmaContext {
  public:
   GemmaContext(const char* tokenizer_path, const char* model_type,
@@ -34,7 +36,8 @@ class GemmaContext {
                const AppArgs& app_args, int max_length = 2048);
 
   // Returns length of generated text, or -1 on error
-  int Generate(const char* prompt, char* output, int max_length);
+  int Generate(const char* prompt, char* output, int max_length,
+               GemmaTokenCallback callback, void* user_data);
 
   // Returns number of tokens in text, or -1 on error
   int CountTokens(const char* text);

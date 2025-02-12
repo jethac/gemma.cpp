@@ -38,13 +38,16 @@ typedef gcpp::GemmaContext GemmaContext;
 typedef struct GemmaContext GemmaContext;
 #endif
 
+typedef bool (*GemmaTokenCallback)(const char* text, void* user_data);
+
 GEMMA_API GemmaContext* GemmaCreate(const char* tokenizer_path,
                                     const char* model_type,
                                     const char* weights_path,
-                                    const char* weight_type);
+                                    const char* weight_type, int max_length);
 GEMMA_API void GemmaDestroy(GemmaContext* ctx);
 GEMMA_API int GemmaGenerate(GemmaContext* ctx, const char* prompt, char* output,
-                            int max_length);
+                            int max_length, GemmaTokenCallback callback,
+                            void* user_data);
 
 GEMMA_API int GemmaCountTokens(GemmaContext* ctx, const char* text);
 
