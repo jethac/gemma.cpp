@@ -10,6 +10,10 @@
 
 namespace gcpp {
 
+// Initialize static members
+GemmaLogCallback GemmaContext::s_log_callback = nullptr;
+void* GemmaContext::s_log_user_data = nullptr;
+
 GemmaContext::GemmaContext(const char* tokenizer_path, const char* model_type,
                            const char* weights_path, const char* weight_type,
                            const AppArgs& app_args, int max_length)
@@ -36,7 +40,9 @@ GemmaContext::GemmaContext(const char* tokenizer_path, const char* model_type,
 
 int GemmaContext::Generate(const char* prompt, char* output, int max_length,
                            GemmaTokenCallback callback, void* user_data) {
-  if (!model || !kv_cache || !prompt || !output || max_length <= 0) return -1;
+  if (!model || !kv_cache || !prompt || !output || max_length <= 0) {
+    return -1;
+  }
 
   try {
     // Clear and reuse buffers
@@ -44,48 +50,43 @@ int GemmaContext::Generate(const char* prompt, char* output, int max_length,
     prompt_buffer.assign(prompt);
     token_buffer.clear();
 
-#ifdef _WIN32
-    char debug_buf[8192];
-    sprintf_s(debug_buf, "DEBUG: GemmaContext::Generate ####\n\t%s\n", prompt);
-    OutputDebugStringA(debug_buf);
-#endif
+    // The prompt is assumed to be already wrapped in the appropriate control
+    // tokens if necessary for an instruction tuned model, so we don't use
+    // WrapAndTokenize here
+    HWY_ASSERT(model->Tokenizer().Encode(prompt, &token_buffer));
 
-    token_buffer =
-        WrapAndTokenize(model->Tokenizer(), model->Info(), 0, prompt_buffer);
+    // Both pre-trained and instruction-tuned require BOS as first token
+    if (token_buffer.at(0) != BOS_ID) {
+      token_buffer.insert(token_buffer.begin(), BOS_ID);
+    }
+
+    // Pass prompt_tokens to properly utilize KV cache for subsequent tokens
     const size_t prompt_tokens = token_buffer.size();
     size_t tokens_generated_this_turn = 0;
-    int start_sequence_pos = 0;  // Track position in start sequence
-    bool emitting = false;
 
     auto stream_token = [this, callback, user_data, prompt_tokens,
-                         &tokens_generated_this_turn, &start_sequence_pos,
-                         &emitting](int token, float) {
+                         &tokens_generated_this_turn](int token, float) {
       std::string token_text;
-      if (token != EOS_ID) {
-        if (model->Tokenizer().Decode(std::vector<int>{token}, &token_text)) {
-          if (tokens_generated_this_turn > prompt_tokens) {
-            if (!emitting) {
-              // Look for sequence: <start_of_turn> model
-              if ((start_sequence_pos == 0 &&
-                   token_text == "<start_of_turn>") ||
-                  (start_sequence_pos == 1 && token_text == "model")) {
-                start_sequence_pos++;
-                emitting = (start_sequence_pos == 2);
-              } else {
-                start_sequence_pos = 0;
-              }
-            } else if (token_text != "<end_of_turn>") {
-              if (callback) {
-                if (!callback(token_text.c_str(), user_data)) {
-                  return false;  // Stop generation if callback returns false
-                }
-              }
-              result_buffer.append(token_text);
-            }
-          }
+      if (model->Tokenizer().Decode(std::vector<int>{token}, &token_text)) {
+        // don't re-output the prompt tokens
+        if (tokens_generated_this_turn < prompt_tokens) {
           ++tokens_generated_this_turn;
           return true;
         }
+        // skip the end of turn token, this way we don't have to do string
+        // comparisons at the application level (is this a good idea?)
+        if (token == END_OF_TURN_ID) {
+          return false;
+        }
+
+        if (callback) {
+          if (!callback(token_text.c_str(), user_data)) {
+            return false;
+          }
+        }
+        result_buffer.append(token_text);
+        ++tokens_generated_this_turn;
+        return true;
       }
       return false;
     };
@@ -97,14 +98,16 @@ int GemmaContext::Generate(const char* prompt, char* output, int max_length,
     inference_args.max_generated_tokens = max_length;
     inference_args.CopyTo(runtime_config);
 
-    token_buffer =
-        WrapAndTokenize(model->Tokenizer(), model->Info(), 0, prompt_buffer);
-
     TimingInfo timing_info = {.verbosity = 0};
     hwy::Span<const int> testspan(token_buffer.data(), token_buffer.size());
-    model->Generate(runtime_config, testspan, 0, 0, *kv_cache, timing_info);
 
-    if (result_buffer.length() >= static_cast<size_t>(max_length)) return -1;
+    // Pass prompt_tokens to properly utilize KV cache for subsequent tokens
+    model->Generate(runtime_config, testspan, prompt_tokens, 0, *kv_cache,
+                    timing_info);
+
+    if (result_buffer.length() >= static_cast<size_t>(max_length)) {
+      return -1;
+    }
     strcpy(output, result_buffer.c_str());
     return static_cast<int>(result_buffer.length());
   } catch (...) {
@@ -116,8 +119,8 @@ int GemmaContext::CountTokens(const char* text) {
   if (!model || !text) return -1;
   try {
     std::string text_str(text);
-    std::vector<int> tokens =
-        WrapAndTokenize(model->Tokenizer(), model->Info(), 0, text_str);
+    std::vector<int> tokens;
+    HWY_ASSERT(model->Tokenizer().Encode(text_str, &tokens));
     return static_cast<int>(tokens.size());
   } catch (...) {
     return -1;

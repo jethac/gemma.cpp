@@ -43,4 +43,10 @@ GEMMA_API int GemmaCountTokens(GemmaContext* ctx, const char* text) {
   if (!ctx || !text) return -1;
   return static_cast<gcpp::GemmaContext*>(ctx)->CountTokens(text);
 }
+
+GEMMA_API void GemmaSetLogCallback(GemmaContext* ctx, GemmaLogCallback callback,
+                                   void* user_data) {
+  if (!ctx) return;
+  static_cast<gcpp::GemmaContext*>(ctx)->SetLogCallback(callback, user_data);
+}
 }

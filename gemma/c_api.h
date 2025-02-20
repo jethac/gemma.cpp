@@ -39,6 +39,7 @@ typedef struct GemmaContext GemmaContext;
 #endif
 
 typedef bool (*GemmaTokenCallback)(const char* text, void* user_data);
+typedef void (*GemmaLogCallback)(const char* message, void* user_data);
 
 GEMMA_API GemmaContext* GemmaCreate(const char* tokenizer_path,
                                     const char* model_type,
@@ -50,6 +51,9 @@ GEMMA_API int GemmaGenerate(GemmaContext* ctx, const char* prompt, char* output,
                             void* user_data);
 
 GEMMA_API int GemmaCountTokens(GemmaContext* ctx, const char* text);
+
+GEMMA_API void GemmaSetLogCallback(GemmaContext* ctx, GemmaLogCallback callback,
+                                   void* user_data);
 
 #ifdef __cplusplus
 }

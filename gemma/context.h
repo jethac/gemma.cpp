@@ -1,4 +1,4 @@
-// Copyright 2024 Google LLC
+// Copyright 2025 Google LLC
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +28,7 @@
 namespace gcpp {
 
 typedef bool (*GemmaTokenCallback)(const char* text, void* user_data);
+typedef void (*GemmaLogCallback)(const char* message, void* user_data);
 
 class GemmaContext {
  public:
@@ -42,6 +43,12 @@ class GemmaContext {
   // Returns number of tokens in text, or -1 on error
   int CountTokens(const char* text);
 
+  // Add new method to set logger
+  static void SetLogCallback(GemmaLogCallback callback, void* user_data) {
+    s_log_callback = callback;
+    s_log_user_data = user_data;
+  }
+
  private:
   NestedPools pools;
   std::unique_ptr<Gemma> model;
@@ -54,6 +61,22 @@ class GemmaContext {
   InferenceArgs inference_args;
   AppArgs app_args;
   std::mt19937 gen;
+
+  // Add static members for logging
+  static GemmaLogCallback s_log_callback;
+  static void* s_log_user_data;
+
+  // Use logging helper method to print messages into a managed callback if
+  // necessary
+  static void LogDebug(const char* message) {
+    if (s_log_callback) {
+      s_log_callback(message, s_log_user_data);
+    } else {
+#ifdef _WIN32
+      OutputDebugStringA(message);
+#endif
+    }
+  }
 };
 
 }  // namespace gcpp

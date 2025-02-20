@@ -1,7 +1,7 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-
 namespace GemmaCpp
 {
     public class GemmaException : Exception
@@ -31,10 +31,10 @@ namespace GemmaCpp
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr GemmaCreate(
-            [MarshalAs(UnmanagedType.LPStr)] string tokenizerPath,
-            [MarshalAs(UnmanagedType.LPStr)] string modelType,
-            [MarshalAs(UnmanagedType.LPStr)] string weightsPath,
-            [MarshalAs(UnmanagedType.LPStr)] string weightType,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string tokenizerPath,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string modelType,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string weightsPath,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string weightType,
             int maxLength);
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
@@ -46,25 +46,38 @@ namespace GemmaCpp
         // Keep delegate alive for duration of calls
         private GCHandle _callbackHandle;
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate bool GemmaTokenCallback(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string text,
+            IntPtr userData);
+
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern int GemmaGenerate(
             IntPtr context,
-            [MarshalAs(UnmanagedType.LPStr)] string prompt,
-            [MarshalAs(UnmanagedType.LPStr)] StringBuilder output,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] StringBuilder output,
             int maxLength,
             GemmaTokenCallback callback,
             IntPtr userData);
 
-
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern int GemmaCountTokens(
             IntPtr context,
-            [MarshalAs(UnmanagedType.LPStr)] string text);
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string text);
 
         // Native callback delegate type
-        private delegate bool GemmaTokenCallback(
-            [MarshalAs(UnmanagedType.LPStr)] string text,
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate void GemmaLogCallback(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string message,
             IntPtr userData);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void GemmaSetLogCallback(
+            IntPtr context,
+            GemmaLogCallback callback,
+            IntPtr userData);
+
+        private GCHandle _logCallbackHandle;
 
         public Gemma(string tokenizerPath, string modelType, string weightsPath, string weightType, int maxLength = 8192)
         {
@@ -73,6 +86,20 @@ namespace GemmaCpp
             {
                 throw new GemmaException("Failed to create Gemma context");
             }
+
+            // optionally: set up logging
+            /*
+            GemmaLogCallback logCallback = (message, _) =>
+            {
+#if UNITY_ENGINE
+                Debug.Log($"Gemma: {message}");
+#else
+                Debug.WriteLine($"Gemma: {message}");
+#endif
+            };
+            _logCallbackHandle = GCHandle.Alloc(logCallback);
+            GemmaSetLogCallback(_context, logCallback, IntPtr.Zero);
+            */
         }
 
         public int CountTokens(string prompt)
@@ -134,6 +161,8 @@ namespace GemmaCpp
                     GemmaDestroy(_context);
                     _context = IntPtr.Zero;
                 }
+                if (_logCallbackHandle.IsAllocated)
+                    _logCallbackHandle.Free();
                 _disposed = true;
             }
         }
