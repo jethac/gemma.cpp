@@ -35,7 +35,7 @@ namespace GemmaCpp
             [MarshalAs(UnmanagedType.LPUTF8Str)] string modelType,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string weightsPath,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string weightType,
-            int maxLength);
+            int maxGeneratedTokens);
 
         [DllImport("gemma", CallingConvention = CallingConvention.Cdecl)]
         private static extern void GemmaDestroy(IntPtr context);
@@ -56,7 +56,7 @@ namespace GemmaCpp
             IntPtr context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string prompt,
             [Out] byte[] output,
-            int maxLength,
+            int max_output_chars,
             GemmaTokenCallback callback,
             IntPtr userData);
 
@@ -68,7 +68,7 @@ namespace GemmaCpp
             int image_width,   // Added dimension
             int image_height,  // Added dimension
             [MarshalAs(UnmanagedType.LPUTF8Str)] StringBuilder output, // Output should be StringBuilder for multimodal
-            int maxLength,
+            int max_output_chars,
             GemmaTokenCallback callback,
             IntPtr userData);
 
@@ -135,9 +135,9 @@ namespace GemmaCpp
         private GCHandle _logCallbackHandle;
         private bool _loggingEnabled = false;
 
-        public Gemma(string tokenizerPath, string modelType, string weightsPath, string weightType, int maxLength = 8192)
+        public Gemma(string tokenizerPath, string weightsPath, int maxGeneratedTokens = 8192)
         {
-            _context = GemmaCreate(tokenizerPath, modelType, weightsPath, weightType, maxLength);
+            _context = GemmaCreate(tokenizerPath, weightsPath, maxGeneratedTokens);
             if (_context == IntPtr.Zero)
             {
                 throw new GemmaException("Failed to create Gemma context");
@@ -292,12 +292,12 @@ namespace GemmaCpp
             return count;
         }
 
-        public string Generate(string prompt, int maxLength = 4096)
+        public string Generate(string prompt, int maxOutputChars = 4096)
         {
-            return Generate(prompt, null, maxLength);
+            return Generate(prompt, null, maxOutputChars);
         }
 
-        public string Generate(string prompt, TokenCallback callback, int maxLength = 4096)
+        public string Generate(string prompt, TokenCallback callback, int maxOutputChars = 4096)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(Gemma));
@@ -305,7 +305,7 @@ namespace GemmaCpp
             if (_context == IntPtr.Zero)
                 throw new GemmaException("Gemma context is invalid");
 
-            var outputBuffer = new byte[maxLength * 4];  // Allow for worst case UTF-8 size
+            var outputBuffer = new byte[maxOutputChars * 4];
             GemmaTokenCallback nativeCallback = null;
 
             // Track token count for debugging
@@ -327,7 +327,7 @@ namespace GemmaCpp
 
             try
             {
-                int length = GemmaGenerate(_context, prompt, outputBuffer, maxLength,
+                int length = GemmaGenerate(_context, prompt, outputBuffer, maxOutputChars,
                     nativeCallback, IntPtr.Zero);
 
                 if (length < 0)
@@ -346,13 +346,13 @@ namespace GemmaCpp
             }
         }
 
-        public string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, int maxLength = 4096)
+        public string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, int maxOutputChars = 4096)
         {
             // Pass width and height to the overloaded method
-            return GenerateMultimodal(prompt, imageData, imageWidth, imageHeight, null, maxLength);
+            return GenerateMultimodal(prompt, imageData, imageWidth, imageHeight, null, maxOutputChars);
         }
 
-        public string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, TokenCallback callback, int maxLength = 4096)
+        public string GenerateMultimodal(string prompt, float[] imageData, int imageWidth, int imageHeight, TokenCallback callback, int maxOutputChars = 4096)
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(Gemma));
@@ -369,7 +369,7 @@ namespace GemmaCpp
             if (imageData.Length < imageWidth * imageHeight * 3)
                 throw new ArgumentException("Image data array is too small for the specified dimensions");
 
-            var output = new StringBuilder(maxLength);
+            var output = new StringBuilder(maxOutputChars);
             GemmaTokenCallback nativeCallback = null;
 
             if (callback != null)
@@ -386,7 +386,7 @@ namespace GemmaCpp
                 IntPtr imagePtr = imageHandle.AddrOfPinnedObject();
 
                 // Pass image dimensions to the native call
-                int length = GemmaGenerateMultimodal(_context, prompt, imagePtr, imageWidth, imageHeight, output, maxLength,
+                int length = GemmaGenerateMultimodal(_context, prompt, imagePtr, imageWidth, imageHeight, output, maxOutputChars,
                     nativeCallback, IntPtr.Zero);
 
                 if (length < 0)

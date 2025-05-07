@@ -41,19 +41,27 @@ typedef struct GemmaContext GemmaContext;
 typedef bool (*GemmaTokenCallback)(const char* text, void* user_data);
 typedef void (*GemmaLogCallback)(const char* message, void* user_data);
 
+// Creates a new Gemma context.
+// `max_generated_tokens`: Sets the maximum number of tokens the model will generate per turn.
+// Returns a pointer to the context, or NULL on error.
 GEMMA_API GemmaContext* GemmaCreate(const char* tokenizer_path,
-                                    const char* model_type,
                                     const char* weights_path,
-                                    const char* weight_type, int max_length);
+                                    int max_generated_tokens);
 GEMMA_API void GemmaDestroy(GemmaContext* ctx);
+// Generates text based on the prompt.
+// `max_output_chars`: Specifies the maximum size of the `output` buffer in characters.
+// Returns the number of characters written to `output`, or -1 on error.
 GEMMA_API int GemmaGenerate(GemmaContext* ctx, const char* prompt, char* output,
-                            int max_length, GemmaTokenCallback callback,
+                            int max_output_chars, GemmaTokenCallback callback,
                             void* user_data);
 GEMMA_API int GemmaGenerateMultimodal(GemmaContext* ctx, const char* prompt,
                                       const void* image_data,  // Renamed param
                                       int image_width,   // Added dimension
                                       int image_height,  // Added dimension
-                                      char* output, int max_length,
+// Generates text based on the prompt and image data.
+// `max_output_chars`: Specifies the maximum size of the `output` buffer in characters.
+// Returns the number of characters written to `output`, or -1 on error.
+                                      char* output, int max_output_chars,
                                       GemmaTokenCallback callback,
                                       void* user_data);
 

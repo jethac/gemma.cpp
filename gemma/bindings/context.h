@@ -60,17 +60,16 @@ class GemmaContext {
                const ThreadingArgs& threading_args, int max_length);
 
  public:
-  static GemmaContext* Create(const char* tokenizer_path, const char* ignored1,
-                              const char* weights_path, const char* ignored2,
+  static GemmaContext* Create(const char* tokenizer_path, const char* weights_path,
                               int max_length);
 
   // Returns length of generated text, or -1 on error
-  int Generate(const char* prompt_string, char* output, int max_length,
+  int Generate(const char* prompt_string, char* output, int max_output_chars,
                GemmaTokenCallback callback, void* user_data);
   // Returns length of generated text, or -1 on error
   int GenerateMultimodal(const char* prompt_string, const void* image_data,
                          int image_width, int image_height, char* output,
-                         int max_length, GemmaTokenCallback callback,
+                         int max_output_chars, GemmaTokenCallback callback,
                          void* user_data);
 
   // Returns number of tokens in text, or -1 on error
@@ -198,7 +197,7 @@ class GemmaContext {
                        const void* image_data,  // Null for text-only generation
                        int image_width,   // Added dimension (0 if no image)
                        int image_height,  // Added dimension (0 if no image)
-                       char* output, int max_length,
+                       char* output, int max_output_chars,
                        GemmaTokenCallback callback, void* user_data);
 
   // Pointer to the currently active conversation's data

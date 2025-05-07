@@ -53,9 +53,8 @@ GemmaLogCallback GemmaContext::s_log_callback = nullptr;
 void* GemmaContext::s_log_user_data = nullptr;
 
 GemmaContext* GemmaContext::Create(const char* tokenizer_path,
-                                   const char* ignored1,
                                    const char* weights_path,
-                                   const char* ignored2, int max_length) {
+                                   int max_length) {
   std::stringstream ss;
   ss << "Creating GemmaContext with tokenizer_path: "
      << (tokenizer_path ? tokenizer_path : "null")
@@ -73,24 +72,24 @@ GemmaContext* GemmaContext::Create(const char* tokenizer_path,
   LogDebug("Initializing inference args");
   InferenceArgs inference_args;
   inference_args.Init();
-  inference_args.max_generated_tokens = max_length;
+  inference_args.max_generated_tokens = max_generated_tokens;
   inference_args.temperature = 0.7f;
   inference_args.top_k = 1;
   inference_args.deterministic = false;
 
   ss.str("");
-  ss << "Inference args initialized with max_tokens: " << max_length
+  ss << "Inference args initialized with max_generated_tokens: " << max_generated_tokens
      << ", temperature: " << inference_args.temperature
      << ", top_k: " << inference_args.top_k << ", deterministic: "
      << (inference_args.deterministic ? "true" : "false");
   LogDebug(ss.str().c_str());
 
-  return new GemmaContext(loader, inference_args, threading_args, max_length);
+  return new GemmaContext(loader, inference_args, threading_args, max_generated_tokens);
 }
 
 GemmaContext::GemmaContext(const LoaderArgs& loader,
                            const InferenceArgs& inference_args,
-                           const ThreadingArgs& threading_args, int max_length)
+                           const ThreadingArgs& threading_args, int max_generated_tokens)
     : inference_args(inference_args),
       threading_args(threading_args),
       matmul_env(MakeMatMulEnv(threading_args)),
@@ -114,7 +113,7 @@ GemmaContext::GemmaContext(const LoaderArgs& loader,
 int GemmaContext::GenerateInternal(const char* prompt_string,
                                    const void* image_data, int image_width,
                                    int image_height, char* output,
-                                   int max_length, GemmaTokenCallback callback,
+                                   int max_output_chars, GemmaTokenCallback callback,
                                    void* user_data) {
   PROFILER_ZONE("Gen.Internal");
   size_t tokens_generated_this_turn = 0;  // differentiates prefill from reply
@@ -251,26 +250,26 @@ int GemmaContext::GenerateInternal(const char* prompt_string,
   }
 
   // Copy result buffer to output C-string (ensure null termination)
-  strncpy(output, result_buffer.c_str(), max_length - 1);
-  output[max_length - 1] = '\0';  // Explicit null termination
+  strncpy(output, result_buffer.c_str(), max_output_chars - 1); // Use new parameter name
+  output[max_output_chars - 1] = '\0';  // Explicit null termination
 
   return static_cast<int>(strlen(output));  // Return length of the C-string
 }
 
 // Public Generate method (wrapper for text-only)
 int GemmaContext::Generate(const char* prompt_string, char* output,
-                           int max_length, GemmaTokenCallback callback,
+                           int max_output_chars, GemmaTokenCallback callback,
                            void* user_data) {
   // Call the internal implementation with null image_data and 0 dimensions
-  return GenerateInternal(prompt_string, nullptr, 0, 0, output, max_length,
+  return GenerateInternal(prompt_string, nullptr, 0, 0, output, max_output_chars,
                           callback, user_data);
 }
 
 // Public GenerateMultimodal method (wrapper)
 int GemmaContext::GenerateMultimodal(const char* prompt_string,
                                      const void* image_data, int image_width,
-                                     int image_height,  // Added dimensions
-                                     char* output, int max_length,
+                                     int image_height,
+                                     char* output, int max_output_chars,
                                      GemmaTokenCallback callback,
                                      void* user_data) {
   if (image_data == nullptr) {
@@ -283,7 +282,7 @@ int GemmaContext::GenerateMultimodal(const char* prompt_string,
   }
 
   return GenerateInternal(prompt_string, image_data, image_width, image_height,
-                          output, max_length, callback, user_data);
+                          output, max_output_chars, callback, user_data);
 }
 
 int GemmaContext::CountTokens(const char* text) {
