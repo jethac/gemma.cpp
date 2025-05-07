@@ -43,12 +43,17 @@ struct KVCache;
 
 // Struct to hold data for a single conversation thread
 struct ConversationData {
+public:
+  // Constructor to initialize kv_cache
+  ConversationData(const ModelConfig& model_config, size_t prefill_tbatch_size);
+  // Copy constructor
+  ConversationData(const ConversationData& other);
+private:
+  const ModelConfig& model_config_ref_;
+  size_t prefill_tbatch_size_;
+public:
   std::unique_ptr<KVCache> kv_cache;
   size_t abs_pos = 0;
-
-  // Constructor to initialize kv_cache (requires KVCache definition or forward
-  // declaration)
-  ConversationData(const ModelConfig& model_config, size_t prefill_tbatch_size);
 };
 
 typedef bool (*GemmaTokenCallback)(const char* text, void* user_data);
@@ -121,15 +126,63 @@ class GemmaContext {
     LogDebug("Setting prefill_tbatch_size to configured value");
   }
 
+  void SaveConversation() {
+    if (!active_conversation || active_conversation_name.empty()) {
+      if (!active_conversation) {
+        LogDebug("SaveConversation: No active conversation to save.");
+      } else { // active_conversation_name must be empty
+        LogDebug("SaveConversation: Active conversation name is empty. Cannot save.");
+      }
+      return;
+    }
+    std::string log_msg = "SaveConversation: Attempting to save '";
+    log_msg += active_conversation_name;
+    log_msg += "' to prewarmed_cache.";
+    LogDebug(log_msg.c_str());
+
+    // Create a deep copy of the active_conversation.
+    // The ConversationData copy constructor handles the deep copy of KVCache.
+    auto conversation_copy = std::make_shared<ConversationData>(*active_conversation);
+
+    // Store the deep copy in prewarmed_cache.
+    // If a conversation with the same name already exists, it will be overwritten.
+    // std::shared_ptr will handle the destruction of the old object if it's being replaced.
+    prewarmed_cache[active_conversation_name] = conversation_copy;
+
+    log_msg = "SaveConversation: Successfully saved '";
+    log_msg += active_conversation_name;
+    log_msg += "' to prewarmed_cache.";
+    LogDebug(log_msg.c_str());
+  }
+
   // Reset the currently active conversation
   void ResetConversation() {
     if (active_conversation) {
-      LogDebug("Resetting active conversation");
+      std::string log_prefix = "ResetConversation ('";
+      log_prefix += active_conversation_name.empty() ? "[unnamed]" : active_conversation_name;
+      log_prefix += "'): ";
+      LogDebug((log_prefix + "Attempting to reset.").c_str());
+      // Attempt to restore from prewarmed_cache first, regardless of name.
+      auto it = prewarmed_cache.find(active_conversation_name);
+      if (it != prewarmed_cache.end() && it->second && it->second->kv_cache) {
+        // Found in prewarmed_cache and the cached entry is valid.
+        LogDebug((log_prefix + "Found in prewarmed_cache. Restoring state.").c_str());
+        active_conversation->abs_pos = it->second->abs_pos;
+        // Perform a deep copy of the KVCache from the prewarmed version.
+        active_conversation->kv_cache = std::make_unique<KVCache>(
+            it->second->kv_cache->Copy(model.GetModelConfig(), inference_args.prefill_tbatch_size)
+        );
+        LogDebug((log_prefix + "Successfully restored from prewarmed_cache.").c_str());
+        return;
+      }
+
+      // If not found in prewarmed_cache or prewarmed_cache entry is invalid,
+      // rewind to initial state.
       active_conversation->abs_pos = 0;
       // Replace the cache within the current ConversationData object
       active_conversation->kv_cache = std::make_unique<KVCache>(KVCache::Create(
           model.GetModelConfig(), inference_args.prefill_tbatch_size));
-      LogDebug("Active conversation reset");
+      LogDebug((log_prefix + "Successfully rewound to initial state.").c_str());
     } else {
       LogDebug("Cannot reset conversation: active_conversation is null");
     }
@@ -159,6 +212,7 @@ class GemmaContext {
     }
     LogDebug("Switching active conversation");
     active_conversation = it->second;
+    active_conversation_name = conversation_name;
     return true;
   }
 
@@ -182,6 +236,12 @@ class GemmaContext {
 
     LogDebug("Deleting conversation");
     conversation_cache.erase(it);
+
+    auto it2 = prewarmed_cache.find(name);
+    if (it2 != prewarmed_cache.end()) {
+      prewarmed_cache.erase(it2);
+    }
+
     return true;
   }
 
@@ -190,6 +250,9 @@ class GemmaContext {
     std::string name(conversation_name);
     return conversation_cache.count(name);
   }
+
+  // Get the name of the currently active conversation
+  const char* GetCurrentConversation();
 
  private:
   // Internal implementation shared by Generate and GenerateMultimodal
@@ -206,6 +269,8 @@ class GemmaContext {
   // Cache of all named conversations
   std::unordered_map<std::string, std::shared_ptr<ConversationData>>
       conversation_cache;
+  std::unordered_map<std::string, std::shared_ptr<ConversationData>>
+      prewarmed_cache;
 
   // Buffers (potentially could be moved into ConversationData if needed
   // per-conversation)
@@ -217,6 +282,8 @@ class GemmaContext {
   InferenceArgs inference_args;
   ThreadingArgs threading_args;
   MatMulEnv matmul_env;
+
+  std::string active_conversation_name;
 
   // Model itself (don't move this, needs to be below the args above)
   Gemma model;

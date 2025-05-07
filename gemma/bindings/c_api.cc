@@ -131,4 +131,14 @@ GEMMA_API int GemmaHasConversation(GemmaContext* ctx,
   if (!ctx || !conversation_name) return 0;
   return ctx->HasConversation(conversation_name) ? 1 : 0;
 }
+
+GEMMA_API const char* GemmaGetCurrentConversation(GemmaContext* ctx) {
+  if (!ctx) return nullptr;
+  return ctx->GetCurrentConversation();
+}
+
+GEMMA_API void GemmaSaveConversation(GemmaContext* ctx) {
+  if (!ctx) return;
+  ctx->SaveConversation();
+}
 }

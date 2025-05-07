@@ -86,6 +86,8 @@ GEMMA_API int GemmaDeleteConversation(
     GemmaContext* ctx, const char* conversation_name);  // Renamed
 GEMMA_API int GemmaHasConversation(GemmaContext* ctx,
                                    const char* conversation_name);  // Renamed
+GEMMA_API const char* GemmaGetCurrentConversation(GemmaContext* ctx);
+GEMMA_API void GemmaSaveConversation(GemmaContext* ctx);
 
 #ifdef __cplusplus
 }

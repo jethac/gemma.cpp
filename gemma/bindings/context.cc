@@ -44,9 +44,23 @@ namespace gcpp {
 // ConversationData constructor implementation
 ConversationData::ConversationData(const ModelConfig& model_config,
                                    size_t prefill_tbatch_size)
-    : kv_cache(std::make_unique<KVCache>(
+    : model_config_ref_(model_config),
+      prefill_tbatch_size_(prefill_tbatch_size),
+      kv_cache(std::make_unique<KVCache>(
           KVCache::Create(model_config, prefill_tbatch_size))),
       abs_pos(0) {}
+
+// ConversationData copy constructor implementation
+ConversationData::ConversationData(const ConversationData& other)
+    : model_config_ref_(other.model_config_ref_),
+      prefill_tbatch_size_(other.prefill_tbatch_size_),
+      kv_cache(nullptr),
+      abs_pos(other.abs_pos) {
+  if (other.kv_cache) {
+    kv_cache = std::make_unique<KVCache>(
+        other.kv_cache->Copy(other.model_config_ref_, other.prefill_tbatch_size_));
+  }
+}
 
 // Initialize static members
 GemmaLogCallback GemmaContext::s_log_callback = nullptr;
@@ -93,7 +107,8 @@ GemmaContext::GemmaContext(const LoaderArgs& loader,
     : inference_args(inference_args),
       threading_args(threading_args),
       matmul_env(MakeMatMulEnv(threading_args)),
-      model(loader, matmul_env) {
+      active_conversation_name("default"),
+      model(CreateGemma(loader, matmul_env)) {
   std::stringstream ss;
 
   LogDebug("Creating initial ConversationData");
@@ -317,6 +332,11 @@ int GemmaContext::CountTokens(const char* text) {
     LogDebug("Unknown exception in CountTokens");
     return -1;
   }
+}
+
+// Get the name of the currently active conversation
+const char* GemmaContext::GetCurrentConversation() {
+  return active_conversation_name.c_str();
 }
 
 }  // namespace gcpp

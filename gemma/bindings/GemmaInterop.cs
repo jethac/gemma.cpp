@@ -120,6 +120,13 @@ namespace GemmaCpp
             IntPtr context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string conversationName);
 
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl, EntryPoint = "GemmaGetCurrentConversation")]
+        [return: MarshalAs(UnmanagedType.LPUTF8Str)] // Marshal the const char* return value as a string
+        private static extern string GemmaGetCurrentConversation(IntPtr context);
+
+        [DllImport("gemma", CallingConvention = CallingConvention.Cdecl, EntryPoint = "GemmaSaveConversation")]
+        private static extern void GemmaSaveConversation(IntPtr context);
+
         // Native callback delegate type
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void GemmaLogCallback(
@@ -279,6 +286,31 @@ namespace GemmaCpp
             bool result = GemmaHasConversation(_context, conversationName) != 0; // Call P/Invoke method
             Debug.WriteLine($"Gemma: Has conversation '{conversationName}' - {result}");
             return result;
+        }
+
+        public string GetCurrentConversation()
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            string currentConversation = GemmaGetCurrentConversation(_context); // Call P/Invoke method
+            Debug.WriteLine($"Gemma: Current conversation is '{currentConversation}'");
+            return currentConversation;
+        }
+
+        public void SaveConversation()
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(Gemma));
+
+            if (_context == IntPtr.Zero)
+                throw new GemmaException("Gemma context is invalid");
+
+            GemmaSaveConversation(_context);
+            Debug.WriteLine($"Gemma: Saved current conversation ('{GetCurrentConversation()}') to prewarmed cache.");
         }
 
         public int CountTokens(string prompt)
