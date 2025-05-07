@@ -18,6 +18,7 @@
 #endif
 
 #include "gemma/bindings/c_api.h"
+#include "util/threading_context.h" // Added for ThreadHostileInvalidate
 
 extern "C" {
 
@@ -33,7 +34,13 @@ GEMMA_API GemmaContext* GemmaCreate(const char* tokenizer_path,
   }
 }
 
-GEMMA_API void GemmaDestroy(GemmaContext* ctx) { delete ctx; }
+GEMMA_API void GemmaDestroy(GemmaContext* ctx) {
+  delete ctx;
+  // Invalidate the global threading context singleton after deleting the context
+  // to allow re-initialization on subsequent runs within the same process
+  // (e.g., Unity Editor play mode).
+  gcpp::ThreadingContext2::ThreadHostileInvalidate();
+}
 
 GEMMA_API int GemmaGenerate(GemmaContext* ctx, const char* prompt, char* output,
                             int max_output_chars, GemmaTokenCallback callback,
