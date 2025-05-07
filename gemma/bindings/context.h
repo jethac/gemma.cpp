@@ -298,7 +298,7 @@ class GemmaContext {
   // Use logging helper method to print messages into a managed callback if
   // necessary
   static void LogDebug(const char* message) {
-    if (s_log_callback) {
+    if (s_log_callback != nullptr) {
       s_log_callback(message, s_log_user_data);
     } else {
 #ifdef _WIN32
