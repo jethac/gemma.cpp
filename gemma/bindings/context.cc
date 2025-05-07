@@ -238,8 +238,12 @@ int GemmaContext::GenerateInternal(const char* prompt_string,
     return -1;
   }
 
+  // Create a span from the prompt vector - Generate() expects a hwy::Span,
+  // which has a different memory footprint to that of a std::vector.
+  hwy::Span<const int> prompt_span(prompt.data(), prompt.size());
+
   // Pass the KVCache object by reference from the active conversation
-  model.Generate(runtime_config, prompt, active_conversation->abs_pos,
+  model.Generate(runtime_config, prompt_span, active_conversation->abs_pos,
                  prefix_end, *(active_conversation->kv_cache), timing_info);
 
   // prepare for next turn
